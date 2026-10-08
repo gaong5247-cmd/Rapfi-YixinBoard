@@ -6,7 +6,6 @@ on:
     paths:
       - '.github/workflows/build-windows.yml'
       - 'scripts/**'
-      - 'modern.css'
       - 'README.md'
 permissions:
   contents: read
@@ -52,12 +51,11 @@ jobs:
           cp upstream/Rapfi-YixinBoard.exe dist/Rapfi-YixinBoard/
           cp upstream/LICENSE.md dist/Rapfi-YixinBoard/LICENSE-YixinBoard.md
           cp README.md dist/Rapfi-YixinBoard/README.md
-          cp modern.css dist/Rapfi-YixinBoard/
           cp -r upstream/skin upstream/language upstream/function dist/Rapfi-YixinBoard/
           # Upstream's default sprite name is piece.bmp, while its distributed
           # bitmap skin is named skin/skin_1.bmp. Supply the required alias.
-          cp upstream/skin/skin_1.bmp dist/Rapfi-YixinBoard/piece.bmp
-          cp upstream/skin/skin_2.bmp dist/Rapfi-YixinBoard/piece_dark.bmp
+          python scripts/make_piece_bmp.py dist/Rapfi-YixinBoard/piece.bmp
+          cp dist/Rapfi-YixinBoard/piece.bmp dist/Rapfi-YixinBoard/piece_dark.bmp
           test -s dist/Rapfi-YixinBoard/piece.bmp
 
           for file in upstream/*.bmp upstream/*.ico upstream/*.lng; do
@@ -85,7 +83,7 @@ jobs:
           1. Place your compatible rapfi.exe in this folder.
           2. Run Rapfi-YixinBoard.exe.
           3. Use the original YixinBoard toolbar, balance and analysis commands.
-          4. The original BMP skin resources are included; modern.css is optional.
+          4. A custom 44px sprite atlas supplies piece.bmp and piece_dark.bmp.
           The engine itself is not redistributed in this package.
           EOF
           cd dist
