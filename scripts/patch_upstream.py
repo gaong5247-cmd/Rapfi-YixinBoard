@@ -61,5 +61,60 @@ text = text.replace(sprite, sprite + '''
     }
 ''')
 
+# Display the GUI before opening Rapfi and sending setup/database commands.
+# Defer on the GTK main thread (never touch Gtk widgets from a worker).
+old_main = '''    load_engine();
+    init_engine();
+    gtk_window_set_default_icon(
+        gdk_pixbuf_new_from_file("icon.ico", NULL)); /* set the default icon for all windows */
+    create_windowclock();
+    create_windowmain();
+    show_welcome();
+    show_database();
+    gtk_main();'''
+new_main = '''    startup_mark("gtk-ready");
+    gtk_window_set_default_icon(
+        gdk_pixbuf_new_from_file("icon.ico", NULL)); /* set the default icon for all windows */
+    create_windowclock();
+    create_windowmain();
+    startup_mark("gui-created");
+    show_welcome();
+    /* Allow GTK to paint the first frame before spawning/loading the engine. */
+    g_timeout_add(250, startup_engine_callback, NULL);
+    gtk_main();'''
+assert text.count(old_main) == 1, "Upstream startup sequence changed"
+text = text.replace(old_main, new_main)
+# A timestamped log permits distinguishing GTK creation vs engine startup.
+marker = 'int main(int argc, char **argv)'
+assert text.count(marker) == 1
+helpers = '''
+static gint64 rapfi_start_monotonic = 0;
+static void startup_mark(const char *stage)
+{
+    gint64 now = g_get_monotonic_time();
+    if (!rapfi_start_monotonic) rapfi_start_monotonic = now;
+    FILE *log = fopen("startup-timing.log", "a");
+    if (log) {
+        fprintf(log, "%s: %.3f seconds\\n", stage,
+                (now - rapfi_start_monotonic) / 1000000.0);
+        fclose(log);
+    }
+}
+static gboolean startup_engine_callback(gpointer data)
+{
+    (void)data;
+    startup_mark("engine-start");
+    load_engine();
+    startup_mark("engine-spawned");
+    init_engine();
+    startup_mark("engine-initialized");
+    show_database();
+    startup_mark("database-requested");
+    return G_SOURCE_REMOVE;
+}
+
+'''
+text = text.replace(marker, helpers + marker)
+
 main.write_text(text, encoding="utf-8")
-print("Patched Rapfi engine discovery and optional modern CSS; retained all GUI commands.")
+print("Patched Rapfi startup, timing diagnostics, engine discovery and BMP loading.")
