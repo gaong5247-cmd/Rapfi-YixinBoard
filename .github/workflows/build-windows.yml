@@ -1,0 +1,85 @@
+name: Build Windows ZIP
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-windows.yml'
+      - 'scripts/**'
+      - 'modern.css'
+      - 'README.md'
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MinGW GTK3 toolchain
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            python
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-gtk3
+            mingw-w64-x86_64-librsvg
+            zip
+      - name: Checkout licensed upstream
+        run: |
+          git clone https://github.com/dhbloo/Yixin-Board.git upstream
+          cd upstream
+          git checkout e947fa65b30a22c177f25c8ee671639d76318487
+      - name: Apply minimal GUI patches
+        run: |
+          python scripts/patch_upstream.py upstream
+      - name: Compile YixinBoard with GTK3
+        run: |
+          cd upstream
+          gcc main.c -O2 -o Rapfi-YixinBoard.exe -lm $(pkg-config --cflags --libs gtk+-3.0) -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-deprecated-declarations
+      - name: Package executable, GTK runtime, BMP skins and license
+        run: |
+          set -eu
+          mkdir -p dist/Rapfi-YixinBoard
+          cp upstream/Rapfi-YixinBoard.exe dist/Rapfi-YixinBoard/
+          cp upstream/LICENSE.md dist/Rapfi-YixinBoard/LICENSE-YixinBoard.md
+          cp README.md dist/Rapfi-YixinBoard/README.md
+          cp modern.css dist/Rapfi-YixinBoard/
+          cp -r upstream/skin upstream/language upstream/function dist/Rapfi-YixinBoard/
+          for file in upstream/*.bmp upstream/*.ico upstream/*.lng; do
+            if [ -f "$file" ]; then cp "$file" dist/Rapfi-YixinBoard/; fi
+          done
+          # Bundle MinGW GTK3 dependencies for a stand-alone Windows ZIP.
+          cp /mingw64/bin/*.dll dist/Rapfi-YixinBoard/
+          mkdir -p dist/Rapfi-YixinBoard/lib dist/Rapfi-YixinBoard/share
+          cp -r /mingw64/lib/gdk-pixbuf-2.0 dist/Rapfi-YixinBoard/lib/
+          cp -r /mingw64/lib/gtk-3.0 dist/Rapfi-YixinBoard/lib/
+          cp -r /mingw64/share/glib-2.0 dist/Rapfi-YixinBoard/share/
+          cp -r /mingw64/share/icons dist/Rapfi-YixinBoard/share/
+          if [ -d /mingw64/share/themes ]; then cp -r /mingw64/share/themes dist/Rapfi-YixinBoard/share/; fi
+          cat > dist/Rapfi-YixinBoard/START-HERE.txt <<'EOF'
+          Rapfi-YixinBoard
+          1. Place your compatible rapfi.exe in this folder.
+          2. Run Rapfi-YixinBoard.exe.
+          3. Use the original YixinBoard toolbar, balance and analysis commands.
+          4. The original BMP skin resources are included; modern.css is optional.
+          The engine itself is not redistributed in this package.
+          EOF
+          cd dist
+          zip -qr Rapfi-YixinBoard-Windows-x64.zip Rapfi-YixinBoard
+          test -s Rapfi-YixinBoard-Windows-x64.zip
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rapfi-YixinBoard-Windows-x64
+          path: dist/Rapfi-YixinBoard-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30
