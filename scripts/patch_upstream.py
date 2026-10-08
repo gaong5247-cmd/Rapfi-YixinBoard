@@ -10,8 +10,45 @@ win_old = 'gchar *argv[] = {"engine.exe", "--force-utf8", NULL};'
 unix_old = 'gchar *argv[] = {"./engine", NULL};'
 assert text.count(win_old) == 1, "Upstream Windows engine launcher changed"
 assert text.count(unix_old) == 1, "Upstream Unix engine launcher changed"
-text = text.replace(win_old, 'gchar *argv[] = {"rapfi.exe", NULL};')
+text = text.replace(win_old, 'gchar *argv[] = {"./rapfi.exe", NULL};')
 text = text.replace(unix_old, 'gchar *argv[] = {"./rapfi", NULL};')
+# Ensure relative engine, configuration and BMP paths resolve next to the GUI,
+# even when the GUI is launched by a shortcut or another working directory.
+win_include = '#include <time.h>'
+assert text.count(win_include) == 1
+text = text.replace(win_include, win_include + '''
+#ifdef G_OS_WIN32
+#include <windows.h>
+#include <wchar.h>
+#endif
+''')
+entry = '    srand((unsigned)time(NULL));'
+assert text.count(entry) == 1
+text = text.replace(entry, '''
+#ifdef G_OS_WIN32
+    {
+        wchar_t executable_path[32768];
+        DWORD n = GetModuleFileNameW(NULL, executable_path, 32768);
+        if (n > 0 && n < 32768) {
+            wchar_t *slash = wcsrchr(executable_path, L'\\\\');
+            if (slash) {
+                *slash = L'\\0';
+                SetCurrentDirectoryW(executable_path);
+            }
+        }
+    }
+#endif
+''' + entry)
+# Avoid generic spawn error: state exactly where the engine should be installed.
+spawn_anchor = '    ret = g_spawn_async_with_pipes(NULL,'
+assert text.count(spawn_anchor) == 1
+text = text.replace(spawn_anchor, '''
+#ifdef G_OS_WIN32
+    if (!g_file_test("rapfi.exe", G_FILE_TEST_IS_REGULAR))
+        panic("rapfi.exe was not found beside Rapfi-YixinBoard.exe. Extract the ZIP first, then copy rapfi.exe into the same folder.");
+#endif
+''' + spawn_anchor)
+
 # A GTK style provider changes presentation only, preserving every original control.
 anchor = '    gtk_init_with_args(&argc, &argv, NULL, options, NULL, &error);'
 assert text.count(anchor) == 1, "Upstream GTK initialization changed"
