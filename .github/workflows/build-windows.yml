@@ -59,6 +59,15 @@ jobs:
           done
           # Bundle MinGW GTK3 dependencies for a stand-alone Windows ZIP.
           cp /mingw64/bin/*.dll dist/Rapfi-YixinBoard/
+          # GLib uses a gspawn helper to launch the Rapfi subprocess on Windows.
+          # Unlike DLLs, these executable helpers must be explicitly packaged.
+          for helper in /mingw64/bin/gspawn-*-helper*.exe; do
+            if [ -f "$helper" ]; then cp "$helper" dist/Rapfi-YixinBoard/; fi
+          done
+          if ! compgen -G 'dist/Rapfi-YixinBoard/gspawn-*-helper*.exe' > /dev/null; then
+            echo "Missing GLib gspawn helper executable" >&2
+            exit 1
+          fi
           mkdir -p dist/Rapfi-YixinBoard/lib dist/Rapfi-YixinBoard/share
           cp -r /mingw64/lib/gdk-pixbuf-2.0 dist/Rapfi-YixinBoard/lib/
           cp -r /mingw64/lib/gtk-3.0 dist/Rapfi-YixinBoard/lib/
