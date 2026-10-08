@@ -54,6 +54,12 @@ jobs:
           cp README.md dist/Rapfi-YixinBoard/README.md
           cp modern.css dist/Rapfi-YixinBoard/
           cp -r upstream/skin upstream/language upstream/function dist/Rapfi-YixinBoard/
+          # Upstream's default sprite name is piece.bmp, while its distributed
+          # bitmap skin is named skin/skin_1.bmp. Supply the required alias.
+          cp upstream/skin/skin_1.bmp dist/Rapfi-YixinBoard/piece.bmp
+          cp upstream/skin/skin_2.bmp dist/Rapfi-YixinBoard/piece_dark.bmp
+          test -s dist/Rapfi-YixinBoard/piece.bmp
+
           for file in upstream/*.bmp upstream/*.ico upstream/*.lng; do
             if [ -f "$file" ]; then cp "$file" dist/Rapfi-YixinBoard/; fi
           done
