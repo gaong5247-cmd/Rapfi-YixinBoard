@@ -49,6 +49,18 @@ text = text.replace(spawn_anchor, '''
 #endif
 ''' + spawn_anchor)
 
+# Fail with a useful diagnostic instead of dereferencing a missing sprite image.
+sprite = '    pixbuf            = gdk_pixbuf_new_from_file(piecepicname, NULL);'
+assert text.count(sprite) == 1, "Upstream bitmap loading changed"
+text = text.replace(sprite, sprite + '''
+    if (!pixbuf) {
+        gchar *message = g_strdup_printf(
+            "Cannot load %s from the GUI folder. Required sprite sheet: piece.bmp (or piece_dark.bmp in dark mode).",
+            piecepicname);
+        panic(message);
+    }
+''')
+
 # A GTK style provider changes presentation only, preserving every original control.
 anchor = '    gtk_init_with_args(&argc, &argv, NULL, options, NULL, &error);'
 assert text.count(anchor) == 1, "Upstream GTK initialization changed"
